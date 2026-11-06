@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  />
+  <title>VoiceLedger · Local model setup</title>
+  <style>
+    body {
+      margin: 0;
+      background: #15191c;
+      color: #edf0ed;
+      font:
+        16px/1.6 "Segoe UI",
+        sans-serif;
+      display: grid;
+      min-height: 100vh;
+      place-items: center;
+    }
+    main {
+      max-width: 540px;
+      padding: 40px;
+    }
+    h1 {
+      font-size: 36px;
+      font-weight: 500;
+      letter-spacing: -1px;
+    }
+    small {
+      color: #b0b9b5;
+    }
+    a {
+      color: #edc47b;
+    }
+    input {
+      box-sizing: border-box;
+      width: 100%;
+      background: #22292c;
+      color: white;
+      border: 1px solid #65706a;
+      border-radius: 8px;
+      padding: 14px;
+      margin: 12px 0;
+    }
+    button {
+      background: #edc47b;
+      border: 0;
+      color: #171c1b;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font: inherit;
+      cursor: pointer;
+    }
+    #status {
+      white-space: pre-wrap;
+    }
+    label {
+      display: block;
+      margin-top: 24px;
+    }
+  </style>
+  <main>
+    <small>VOICELEDGER / LOCAL MODEL SETUP</small>
+    <h1>Connect your free models.</h1>
+    <p>
+      Community-1 runs on your computer. Its download requires your Hugging Face
+      account.
+    </p>
+    <ol>
+      <li>
+        Accept the
+        <a
+          href="https://huggingface.co/pyannote/speaker-diarization-community-1"
+          target="_blank"
+          rel="noreferrer"
+          >Community-1 download conditions</a
+        >.
+      </li>
+      <li>
+        Create a
+        <a
+          href="https://huggingface.co/settings/tokens"
+          target="_blank"
+          rel="noreferrer"
+          >Hugging Face read token</a
+        >.
+      </li>
+    </ol>
+    <form id="login">
+      <label for="token">Read token</label
+      ><input
+        id="token"
+        name="token"
+        type="password"
+        autocomplete="off"
+        placeholder="hf_…"
+        required
+      />
+      <button id="submit" type="submit">Save local sign-in</button>
+    </form>
+    <p id="status" role="status"></p>
+    <small
+      >The token is validated with Hugging Face and saved by its local
+      credential cache. It is never added to this project or sent through chat.
+      Your audio stays on this computer.</small
+    >
+    <script>
+      document.getElementById("login").onsubmit = async (e) => {
+        e.preventDefault();
+        const b = document.getElementById("submit"),
+          s = document.getElementById("status"),
+          i = document.getElementById("token");
+        b.disabled = true;
+        s.textContent = "Validating…";
+        try {
+          const session = await (await fetch("/api/v1/session")).json();
+          const r = await fetch("/api/v1/huggingface/login", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-voiceledger-token": session.token,
+            },
+            body: JSON.stringify({ token: i.value }),
+          });
+          i.value = "";
+          const v = await r.json();
+          if (!r.ok) throw Error(v.detail);
+          s.textContent =
+            "Signed in. You can return to the chat; the local speaker-model test can now continue.";
+        } catch (e) {
+          s.textContent = e.message;
+        } finally {
+          b.disabled = false;
+        }
+      };
+    </script>
+  </main>
+</html>

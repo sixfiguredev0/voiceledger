@@ -1,0 +1,92 @@
+{
+  "title": "LibriSpeech review demo",
+  "license": "CC-BY-4.0",
+  "source": "https://www.openslr.org/12",
+  "archive": "test-clean.tar.gz",
+  "creators": "Vassil Panayotov, Guoguo Chen, Daniel Povey and Sanjeev Khudanpur",
+  "description": "A curated sequence of English audiobook excerpts, not a recorded conversation. Transcripts and speaker groupings come from the source dataset. Two turns are deliberately unconfirmed to demonstrate review. No model accuracy is implied.",
+  "modifications": "Selected utterances concatenated with 250 ms silence; encoded to lossless FLAC.",
+  "source_files": [
+    "LibriSpeech/test-clean/6930/75918/6930-75918-0000.flac",
+    "LibriSpeech/test-clean/1320/122617/1320-122617-0003.flac",
+    "LibriSpeech/test-clean/5639/40744/5639-40744-0032.flac",
+    "LibriSpeech/test-clean/6930/75918/6930-75918-0007.flac",
+    "LibriSpeech/test-clean/1320/122617/1320-122617-0012.flac",
+    "LibriSpeech/test-clean/6930/75918/6930-75918-0006.flac",
+    "LibriSpeech/test-clean/5639/40744/5639-40744-0002.flac",
+    "LibriSpeech/test-clean/1320/122617/1320-122617-0026.flac"
+  ],
+  "speakers": [
+    "Reader A",
+    "Reader B",
+    "Reader C"
+  ],
+  "recordings": [
+    {
+      "filename": "session-1.flac",
+      "turns": [
+        {
+          "start_ms": 0,
+          "end_ms": 3505,
+          "speaker": 0,
+          "text": "CONCORD RETURNED TO ITS PLACE AMIDST THE TENTS",
+          "uncertain": false
+        },
+        {
+          "start_ms": 3755,
+          "end_ms": 10040,
+          "speaker": 1,
+          "text": "THERE WAS SOMETHING IN HIS AIR AND MANNER THAT BETRAYED TO THE SCOUT THE UTTER CONFUSION OF THE STATE OF HIS MIND",
+          "uncertain": false
+        },
+        {
+          "start_ms": 10290,
+          "end_ms": 27720,
+          "speaker": 2,
+          "text": "FOR GOD'S SAKE MY LADY MOTHER GIVE ME A WIFE WHO WOULD BE AN AGREEABLE COMPANION NOT ONE WHO WILL DISGUST ME SO THAT WE MAY BOTH BEAR EVENLY AND WITH MUTUAL GOOD WILL THE YOKE IMPOSED ON US BY HEAVEN INSTEAD OF PULLING THIS WAY AND THAT WAY AND FRETTING EACH OTHER TO DEATH",
+          "uncertain": true
+        },
+        {
+          "start_ms": 27970,
+          "end_ms": 31285,
+          "speaker": 0,
+          "text": "YOU WILL BE FRANK WITH ME I ALWAYS AM",
+          "uncertain": false
+        }
+      ]
+    },
+    {
+      "filename": "session-2.flac",
+      "turns": [
+        {
+          "start_ms": 0,
+          "end_ms": 7590,
+          "speaker": 1,
+          "text": "FOUR OR FIVE OF THE LATTER ONLY LINGERED ABOUT THE DOOR OF THE PRISON OF UNCAS WARY BUT CLOSE OBSERVERS OF THE MANNER OF THEIR CAPTIVE",
+          "uncertain": false
+        },
+        {
+          "start_ms": 7840,
+          "end_ms": 13690,
+          "speaker": 0,
+          "text": "THIS HAS INDEED BEEN A HARASSING DAY CONTINUED THE YOUNG MAN HIS EYES FIXED UPON HIS FRIEND",
+          "uncertain": false
+        },
+        {
+          "start_ms": 13940,
+          "end_ms": 22850,
+          "speaker": 2,
+          "text": "RODOLFO AND HIS COMPANIONS WITH THEIR FACES MUFFLED IN THEIR CLOAKS STARED RUDELY AND INSOLENTLY AT THE MOTHER THE DAUGHTER AND THE SERVANT MAID",
+          "uncertain": true
+        },
+        {
+          "start_ms": 23100,
+          "end_ms": 28325,
+          "speaker": 1,
+          "text": "WELL WHAT CAN'T BE DONE BY MAIN COURAGE IN WAR MUST BE DONE BY CIRCUMVENTION",
+          "uncertain": false
+        }
+      ]
+    }
+  ]
+}
