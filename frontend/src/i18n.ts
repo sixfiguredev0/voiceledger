@@ -8,8 +8,7 @@ export const en = {
     "Listen to one short excerpt, name the voice, then check the words.",
   reviewEditor: "Review excerpt",
   whoSpeaking: "Who is speaking?",
-  nameOptional:
-    "Enter a name if you recognize the voice. You can leave it unnamed.",
+  nameOptional: "Leave the name blank if you are unsure.",
   wordsSaid: "What was said?",
   wordsHelp: "Correct the words below while listening.",
   playExcerpt: "Play this excerpt",
@@ -251,8 +250,7 @@ export const bg: Record<Key, string> = {
   reviewIntro: "Чуй кратък откъс, назови гласа и провери думите.",
   reviewEditor: "Преглед на откъс",
   whoSpeaking: "Кой говори?",
-  nameOptional:
-    "Въведи име, ако разпознаваш гласа. Можеш да го оставиш без име.",
+  nameOptional: "Остави името празно, ако не си сигурен.",
   wordsSaid: "Какво беше казано?",
   wordsHelp: "Поправи думите по-долу, докато слушаш.",
   playExcerpt: "Чуй този откъс",

@@ -243,7 +243,7 @@ test("short desktop and narrow app panes leave room to read and keep basic contr
   const unobscured = () =>
     page.evaluate(() => {
       const field = document
-        .querySelector('textarea[aria-label="Transcript text"]')!
+        .querySelector(".quick-text textarea")!
         .getBoundingClientRect();
       const save = document
         .querySelector(".quick-save")!
@@ -286,4 +286,17 @@ test("short desktop and narrow app panes leave room to read and keep basic contr
     .getByRole("button", { name: "Back to transcript", exact: true })
     .click();
   await expect(page.locator(".transcript-scroll")).toBeInViewport();
+  await page
+    .getByLabel("Interface language", { exact: true })
+    .selectOption("bg");
+  await page
+    .getByRole("button", { name: "Започни преглед", exact: true })
+    .click();
+  await expect(page.locator(".quick-text textarea")).toBeInViewport({
+    ratio: 1,
+  });
+  await expect(
+    page.getByRole("button", { name: "Запази и продължи", exact: true }),
+  ).toBeInViewport();
+  expect(await unobscured()).toBeTruthy();
 });
