@@ -43,9 +43,11 @@ For installation diagnostics, run this in the project folder:
 
 Create a project with the **+** control, then import audio. Import copies and verifies the original; it never edits the supplied file. Choose a mode and transcription language, then start processing. The **Processing** tab shows progress, cancel and resume controls. One heavy model runs at a time.
 
-Select a transcript turn to hear a short clip and edit it. Use Ctrl/Cmd-click to select several turns. Space plays or pauses; Left/Right seeks five seconds when you are outside an editing control. Search and speaker/review filters narrow the transcript.
+Choose **Start review**. For each short excerpt, click **Play this excerpt**, enter a name if you recognize the voice, and correct the words. **Save & next** saves both edits and opens the next excerpt. **Skip for now** moves on without approving uncertain words. The excerpt player stops at the selected end time. You can also click any excerpt directly. On a narrow window the editor fills the screen; **Back to transcript** closes it. The folder button opens your recording list.
 
-Enter a person's name or select a registered person, then preview the assignment. The scope control lets you apply it to the selected turns or every turn of that detected voice in this recording. Use several clean clips totaling about 20–30 seconds where possible to build a reference. Only save a reference after listening and confirming that it contains that person's clear, isolated voice.
+Enter a person's name or select a registered person. The checkbox lets you name every excerpt of that detected voice in this recording. Name assignment options include a separate proposal preview. **Other corrections** contains boundaries, splitting, exclusions, speaker rechecks and reference creation. These tools remain available without occupying the normal review form. Use several clean clips totaling about 20–30 seconds where possible to build a reference. Only save a reference after listening and confirming that it contains that person's clear, isolated voice.
+
+Search and **Filters** narrow the transcript. Ctrl/Cmd-click selects several excerpts. Space plays or pauses; Left/Right seeks five seconds when you are outside an editing control. Processing mode and reprocessing controls live in **Settings**.
 
 In **Speakers**, compare a detected voice with registered profiles and their reference clips. Similarity is a ranking score, not a probability. Confirm the name yourself. Brief appearances and overlapping voices can confuse automatic clustering; select the affected interval and request a recheck with a minimum speaker count.
 
@@ -73,7 +75,7 @@ Audio processing and manual review use local files after model downloads. Proces
 
 ## Validation and limits
 
-See [measured results and the pilot procedure](docs/benchmarks.md). Automated tests cover decoding and hashes, sample clocks, section ownership, overlap and missing speech, revision conflicts, recheck undo, cross-recording merges, exports and assistant validation. Browser tests cover persistence, bilingual controls, waveform rendering, a 5,000-turn transcript and mobile layout. GitHub Actions needs no private recordings, credentials, model downloads or paid calls.
+See [measured results and the pilot procedure](docs/benchmarks.md). Automated tests cover decoding and hashes, sample clocks, section ownership, overlap and missing speech, revision conflicts, recheck undo, cross-recording merges, exports and assistant validation. Browser tests cover persistence, guided save-and-next, audio playback, bilingual controls, waveform rendering, a 5,000-turn transcript, short windows and a 319 px app pane. GitHub Actions needs no private recordings, credentials, model downloads or paid calls.
 
 Speaker identities need human confirmation. Overlapping voices can be flagged, but this release does not separate voices. Whisper can miss speech or invent words, especially in noise or silence. Boundary context reduces seam errors but does not guarantee identical word timing between chunks. Whole-recording diarization needs memory proportional to recording length. Full multi-hour processing time is not established by one-minute timings.
 

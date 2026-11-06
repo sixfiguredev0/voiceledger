@@ -49,7 +49,7 @@ export default function Player({ recording, t, onTime, onReady }: Props) {
           waveColor: "#68746c",
           progressColor: "#e9bf7a",
           cursorColor: "#e9bf7a",
-          height: 70,
+          height: 40,
           barWidth: 2,
           barGap: 2,
           barRadius: 2,
@@ -80,13 +80,6 @@ export default function Player({ recording, t, onTime, onReady }: Props) {
         <span className="eyebrow">
           <AudioLines size={14} />
           {t("timeline")}
-        </span>
-        <span className="muted mono">
-          {recording.metadata_json.codec.toUpperCase()} ·{" "}
-          {recording.metadata_json.sample_rate / 1000} kHz ·{" "}
-          {recording.metadata_json.channels === 1
-            ? "MONO"
-            : `${recording.metadata_json.channels} CH`}
         </span>
       </div>
       <audio

@@ -49,7 +49,17 @@ It imports only the public demo into a separate validation project. Run it while
 
 ## Bulgarian acceptance procedure
 
-**Word error rate and speaker attribution accuracy are not established yet.** A ten-minute review set can be assembled across the three recordings. Start with the priority recording, include a recurring voice, brief appearances and difficult audio, and annotate approximately three minutes by listening. Do not treat a model's transcript as ground truth.
+**Word error rate and speaker attribution accuracy are not established yet.** A ten-minute review set has been processed locally: one 200-second excerpt from each source, beginning two minutes into the recording. These mechanically selected excerpts still need a person to confirm whether they represent recurring voices, brief appearances and difficult audio. The derived review files preserve normalized float PCM; each records the source range in its private filename. The three originals are imported separately and remain unchanged.
+
+| Review sample | Fast ASR stage | Speaker stage | Largest worker RSS |
+|---|---:|---:|---:|
+| Priority excerpt | 44.184 s | 271.599 s | 666.6 MiB |
+| Second excerpt | 41.290 s | 304.622 s | 627.6 MiB |
+| Third excerpt | 49.175 s | 231.813 s | 628.0 MiB |
+
+Stage times exclude model initialization, decoding, queue time and reconciliation. Builds and other desktop work ran concurrently. The pilot verifies completion and supplies review material; it does not establish quality or representative multi-hour memory use.
+
+Annotate approximately three minutes by listening. Do not treat a model's transcript as ground truth.
 
 1. Correct the words, speaker names, boundaries and overlap labels in the review set. Save a JSON export outside the repository. Keep annotations of non-transcribed speech too.
 2. Provide a separate JSON mapping from raw recording-local cluster labels to the manually verified names. Use names matching the export's `speakers` values. This maps anonymous labels for scoring; it does not claim automatic recognition.

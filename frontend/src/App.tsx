@@ -139,6 +139,9 @@ export default function App() {
   const [playhead, setPlayhead] = useState(0),
     [media, setMedia] = useState<HTMLAudioElement | null>(null),
     [drop, setDrop] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false),
+    [clipPlaying, setClipPlaying] = useState(false);
+  const clipStop = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null),
     scrollRef = useRef<HTMLDivElement>(null),
     loadEpoch = useRef(0);
@@ -342,6 +345,7 @@ export default function App() {
       setProjects(await api<Project[]>("/projects"));
       setProjectId(value.project_id);
       setView("transcript");
+      setFilesOpen(false);
     } catch (e) {
       notify((e as Error).message, true);
     } finally {
@@ -356,6 +360,7 @@ export default function App() {
       setProjects((p) => [...p, value]);
       setProjectId(value.id);
       setProjectOpen(false);
+      setFilesOpen(false);
       setProjectName("");
     } catch (e) {
       notify((e as Error).message, true);
@@ -380,6 +385,7 @@ export default function App() {
       const recs = await api<Recording[]>(`/projects/${target}/recordings`);
       setRecordings(recs);
       setRecordingId(recs.at(-1)?.id ?? "");
+      setFilesOpen(false);
       notify(t("importSuccess"));
       setView("transcript");
     } catch (e) {
@@ -427,6 +433,11 @@ export default function App() {
     }
   }
   function selectTurn(row: Turn, multi = false) {
+    setFilesOpen(false);
+    if (!multi) {
+      media?.pause();
+      clipStop.current = null;
+    }
     setSelectionIds((current) =>
       multi
         ? current.includes(row.id)
@@ -458,6 +469,75 @@ export default function App() {
     estimateSize: () => 108,
     overscan: 8,
   });
+  const reviewPosition = Math.max(
+    0,
+    filtered.findIndex((r) => r.id === selection[0]?.id),
+  );
+  function beginReview() {
+    setView("transcript");
+    setSearch("");
+    setSpeakerFilter("");
+    setUncertainOnly(false);
+    const first = rows.find((r) => !r.excluded);
+    if (first) {
+      selectTurn(first);
+      virtualizer.scrollToIndex(0);
+    }
+  }
+  function moveReview(delta: number) {
+    const next = filtered[reviewPosition + delta];
+    if (next) {
+      selectTurn(next);
+      virtualizer.scrollToIndex(reviewPosition + delta, { align: "auto" });
+    } else {
+      setSelectionIds([]);
+      media?.pause();
+      notify(t("reviewEnd"));
+    }
+  }
+  async function savedReview() {
+    const next = filtered[reviewPosition + 1];
+    await Promise.all([loadProject(), loadTranscript()]);
+    if (next) {
+      selectTurn(next);
+      virtualizer.scrollToIndex(reviewPosition + 1, { align: "auto" });
+    } else {
+      setSelectionIds([]);
+      media?.pause();
+      notify(t("reviewEnd"));
+    }
+  }
+  function playExcerpt() {
+    const first = selection[0];
+    if (!first || !media) return;
+    if (!media.paused && clipStop.current === first.end_ms) {
+      media.pause();
+      return;
+    }
+    clipStop.current = first.end_ms;
+    media.currentTime = first.start_ms / 1000;
+    void media.play().catch(() => notify(t("noAudio"), true));
+  }
+  useEffect(() => {
+    if (!media) return;
+    const update = () => setClipPlaying(!media.paused);
+    media.addEventListener("play", update);
+    media.addEventListener("pause", update);
+    return () => {
+      media.removeEventListener("play", update);
+      media.removeEventListener("pause", update);
+    };
+  }, [media]);
+  const onPlaybackTime = useCallback(
+    (ms: number) => {
+      setPlayhead(ms);
+      if (clipStop.current !== null && ms >= clipStop.current) {
+        media?.pause();
+        clipStop.current = null;
+      }
+    },
+    [media],
+  );
   const activeJob = jobs.find(
     (j) =>
       j.recording_id === recordingId &&
@@ -475,7 +555,7 @@ export default function App() {
   };
   return (
     <div
-      className="app-shell"
+      className={`app-shell ${filesOpen ? "files-open" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
         if (e.dataTransfer.types.includes("Files")) setDrop(true);
@@ -498,6 +578,13 @@ export default function App() {
         onChange={(e) => void importFiles(e.target.files)}
       />
       <aside className="sidebar">
+        <button
+          className="drawer-close icon-button"
+          aria-label={t("close")}
+          onClick={() => setFilesOpen(false)}
+        >
+          <X size={20} />
+        </button>
         <a className="brand" href="/" aria-label="VoiceLedger">
           <IconMark />
           <span>
@@ -545,6 +632,7 @@ export default function App() {
               onClick={() => {
                 setRecordingId(r.id);
                 setView("transcript");
+                setFilesOpen(false);
               }}
             >
               <span className="file-icon">
@@ -552,11 +640,7 @@ export default function App() {
               </span>
               <span className="record-info">
                 <b>{r.filename.replace(/\.[^.]+$/, "")}</b>
-                <small>
-                  {time(r.metadata_json.duration_ms, true)}
-                  <span>·</span>
-                  {r.metadata_json.codec.toUpperCase()}
-                </small>
+                <small>{time(r.metadata_json.duration_ms, true)}</small>
               </span>
               <span
                 className={`record-dot ${r.current_run_id ? "done" : ""}`}
@@ -601,8 +685,22 @@ export default function App() {
           </small>
         </div>
       </aside>
+      {filesOpen && (
+        <button
+          className="sidebar-shade"
+          aria-label={t("close")}
+          onClick={() => setFilesOpen(false)}
+        />
+      )}
       <div className="main-shell">
         <header className="topbar">
+          <button
+            className="mobile-files-button icon-button"
+            aria-label={t("filesMenu")}
+            onClick={() => setFilesOpen(true)}
+          >
+            <FolderOpen size={20} />
+          </button>
           <div className="breadcrumbs">
             <span>{t("local")}</span>
             <ChevronRight size={13} />
@@ -658,14 +756,9 @@ export default function App() {
           <>
             <section className="recording-heading">
               <div>
-                <div className="eyebrow">
-                  <FileAudio size={13} />
-                  {t("recordings")} <span>/</span>{" "}
-                  {String(
-                    recordings.findIndex((r) => r.id === recordingId) + 1,
-                  ).padStart(2, "0")}
-                </div>
-                <h1>{recording.filename.replace(/\.[^.]+$/, "")}</h1>
+                <h1 title={recording.filename}>
+                  {recording.filename.replace(/\.[^.]+$/, "")}
+                </h1>
                 <div className="recording-metadata">
                   <span>
                     <Clock3 size={13} />
@@ -674,10 +767,6 @@ export default function App() {
                   <span>
                     <Users size={13} />
                     {detected.length} {t("detected").toLocaleLowerCase()}
-                  </span>
-                  <span>
-                    <ShieldCheck size={13} />
-                    {t("copied")}
                   </span>
                 </div>
               </div>
@@ -692,7 +781,7 @@ export default function App() {
                   <ChevronDown size={12} />
                 </button>
                 <button
-                  className="button primary"
+                  className={`button ${!rows.length ? "primary" : "reprocess-secondary"}`}
                   onClick={() => void startJob()}
                   disabled={!!activeJob || busy}
                 >
@@ -707,6 +796,15 @@ export default function App() {
                       ? t("reprocess")
                       : t("process")}
                 </button>
+                {!!rows.length && (
+                  <button
+                    className="button primary start-review"
+                    onClick={beginReview}
+                  >
+                    <Play size={16} />
+                    {t("startReview")}
+                  </button>
+                )}
               </div>
             </section>
             <nav className="view-tabs">
@@ -753,12 +851,14 @@ export default function App() {
               </div>
             )}
             {view === "transcript" || view === "review" ? (
-              <div className="review-workspace">
+              <div
+                className={`review-workspace ${selection.length ? "is-reviewing" : ""}`}
+              >
                 <main className="transcript-main">
                   <Player
                     recording={recording}
                     t={t}
-                    onTime={setPlayhead}
+                    onTime={onPlaybackTime}
                     onReady={setMedia}
                   />
                   {conflicts.length > 0 && (
@@ -804,44 +904,52 @@ export default function App() {
                         </button>
                       )}
                     </div>
-                    <select
-                      aria-label={t("allSpeakers")}
-                      value={speakerFilter}
-                      onChange={(e) => setSpeakerFilter(e.target.value)}
-                    >
-                      <option value="">{t("allSpeakers")}</option>
-                      {speakers.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                      {detected.map((c, i) => (
-                        <option key={c} value={c}>
-                          {lang === "bg" ? "Глас" : "Voice"}{" "}
-                          {String(i + 1).padStart(2, "0")}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className={`filter-button ${uncertainOnly ? "selected" : ""}`}
-                      onClick={() => setUncertainOnly(!uncertainOnly)}
-                      aria-pressed={uncertainOnly}
-                    >
-                      <Flag size={13} />
-                      {t("onlyUncertain")}
-                    </button>
-                    <label className="show-excluded">
-                      <input
-                        type="checkbox"
-                        checked={showExcluded}
-                        onChange={(e) => setShowExcluded(e.target.checked)}
-                      />
-                      {t("showExcluded")}
-                    </label>
+                    <details className="transcript-filters">
+                      <summary>
+                        <Settings2 size={14} />
+                        {t("filters")}
+                      </summary>
+                      <div className="filter-popover">
+                        <select
+                          aria-label={t("allSpeakers")}
+                          value={speakerFilter}
+                          onChange={(e) => setSpeakerFilter(e.target.value)}
+                        >
+                          <option value="">{t("allSpeakers")}</option>
+                          {speakers.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                          {detected.map((c, i) => (
+                            <option key={c} value={c}>
+                              {lang === "bg" ? "Глас" : "Voice"}{" "}
+                              {String(i + 1).padStart(2, "0")}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className={`filter-button ${uncertainOnly ? "selected" : ""}`}
+                          onClick={() => setUncertainOnly(!uncertainOnly)}
+                          aria-pressed={uncertainOnly}
+                        >
+                          <Flag size={13} />
+                          {t("onlyUncertain")}
+                        </button>
+                        <label className="show-excluded">
+                          <input
+                            type="checkbox"
+                            checked={showExcluded}
+                            onChange={(e) => setShowExcluded(e.target.checked)}
+                          />
+                          {t("showExcluded")}
+                        </label>
+                      </div>
+                    </details>
                   </div>
                   <div className="transcript-labels">
                     <span>
-                      {t("transcript")}
+                      {t("readHint")}
                       <span className="muted">
                         {" "}
                         {loading
@@ -1017,6 +1125,19 @@ export default function App() {
                   setProposal={setProposal}
                   preview={preview}
                   busy={busy}
+                  onStart={beginReview}
+                  onPlay={playExcerpt}
+                  onNext={() => moveReview(1)}
+                  onPrevious={() => moveReview(-1)}
+                  onClose={() => {
+                    setSelectionIds([]);
+                    media?.pause();
+                    clipStop.current = null;
+                  }}
+                  onSaved={savedReview}
+                  position={reviewPosition + 1}
+                  count={filtered.length}
+                  playing={clipPlaying}
                 />
               </div>
             ) : view === "speakers" ? (
@@ -1397,6 +1518,19 @@ export default function App() {
                 <ArrowUpRight size={13} />
               </a>
             </div>
+            {recording && (
+              <button
+                className="button"
+                disabled={!!activeJob || busy}
+                onClick={() => {
+                  setSettings(false);
+                  void startJob();
+                }}
+              >
+                <AudioLines size={16} />
+                {t(rows.length ? "reprocess" : "process")}
+              </button>
+            )}
             <p className="small muted">{t("modelHint")}</p>
             <div className="model-rows">
               {(["fast", "balanced", "accuracy", "diarization"] as const).map(

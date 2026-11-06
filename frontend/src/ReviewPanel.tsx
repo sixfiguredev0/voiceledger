@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronRight,
@@ -12,6 +12,10 @@ import {
   Flag,
   Split,
   Merge,
+  Play,
+  Pause,
+  X,
+  ArrowLeft,
 } from "lucide-react";
 import { api, post, time } from "./api";
 import type {
@@ -38,6 +42,15 @@ type Props = {
   setProposal: (p: Proposal | null) => void;
   preview: (actions: Action[]) => Promise<void>;
   busy: boolean;
+  onStart: () => void;
+  onPlay: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+  position: number;
+  count: number;
+  playing: boolean;
 };
 export default function ReviewPanel(p: Props) {
   const {
@@ -70,10 +83,15 @@ export default function ReviewPanel(p: Props) {
     [applying, setApplying] = useState(false);
   const first = selection[0],
     ids = selection.map((s) => s.id);
+  const panelScroll = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    panelScroll.current?.scrollTo({ top: 0 });
+  }, [first?.id]);
   useEffect(() => {
     setText(first?.text ?? "");
-    setName("");
+    setName(speakers.find((s) => s.id === first?.speaker_id)?.name ?? "");
     setSpeaker(first?.speaker_id ?? "");
+    setScope("selected");
     setClean(false);
     setRightText("");
     setStart(
@@ -177,15 +195,52 @@ export default function ReviewPanel(p: Props) {
       ...(!first.words.length ? { text, right_text: rightText } : {}),
     });
   };
+  async function saveAndNext() {
+    if (!first) return;
+    setApplying(true);
+    try {
+      const actions: Action[] = [];
+      if (speaker || name.trim())
+        actions.push({
+          kind: "assign",
+          row_ids: ids,
+          scope,
+          ...(speaker ? { speaker_id: speaker } : { name: name.trim() }),
+        });
+      if (selection.length === 1 && text !== first.text)
+        actions.push({ kind: "text", row_ids: ids, text });
+      if (
+        selection.length === 1 &&
+        text.trim() &&
+        !first.overlap &&
+        !first.excluded
+      )
+        actions.push({ kind: "mark", row_ids: ids, category: "speech" });
+      if (actions.length) {
+        const proposed = await post<Proposal>("/corrections/preview", {
+          recording_id: recording.id,
+          base_revision: revision,
+          actions,
+        });
+        await post(`/proposals/${proposed.id}/apply`);
+        notify(t("correctionApplied"));
+      }
+      await p.onSaved();
+    } catch (e) {
+      notify((e as Error).message, true);
+    } finally {
+      setApplying(false);
+    }
+  }
   return (
-    <aside className="review-panel">
+    <aside className="review-panel" aria-label={t("reviewEditor")}>
       <div className="panel-tabs">
         <button
           className={tab === "selection" ? "active" : ""}
           onClick={() => setTab("selection")}
         >
           <UserRound size={15} />
-          {t("selection")}
+          {t("reviewEditor")}
         </button>
         <button
           className={tab === "assistant" ? "active" : ""}
@@ -195,8 +250,15 @@ export default function ReviewPanel(p: Props) {
           {t("assistant")}
           <span className="tiny-dot" />
         </button>
+        <button
+          className="editor-close"
+          aria-label={t("backTranscript")}
+          onClick={p.onClose}
+        >
+          <X size={19} />
+        </button>
       </div>
-      <div className="panel-scroll">
+      <div className="panel-scroll" ref={panelScroll}>
         {proposal && (
           <section
             className={`proposal ${proposal.clarification ? "clarification" : ""}`}
@@ -300,37 +362,30 @@ export default function ReviewPanel(p: Props) {
         {!first ? (
           <div className="panel-empty">
             <Headphones size={30} />
-            <h3>{t("selectTurn")}</h3>
-            <p>{t("assistantHint")}</p>
+            <h3>{t("startReview")}</h3>
+            <p>{t("reviewIntro")}</p>
+            <button className="button primary full" onClick={p.onStart}>
+              <Play size={17} />
+              {t("startFirst")}
+            </button>
           </div>
         ) : (
           <>
             <div className="selection-header">
               <span className="eyebrow">
-                {String(selection.length).padStart(2, "0")}{" "}
-                {t("selectionCount")}
+                {t("excerpt")} {p.position} / {p.count}
               </span>
               <span className="mono muted">
                 {time(first.start_ms)}–{time(first.end_ms)}
               </span>
             </div>
-            <section className="clip-card">
-              <div className="clip-title">
-                <Headphones size={14} />
-                {t("clip")}
-              </div>
-              <audio
-                controls
-                preload="none"
-                key={`${recording.id}:${start}:${end}`}
-                src={
-                  Number(end) > Number(start) &&
-                  Number(end) - Number(start) <= 120
-                    ? `/api/v1/recordings/${recording.id}/clip?start_ms=${Math.round(Number(start) * 1000)}&end_ms=${Math.round(Number(end) * 1000)}`
-                    : undefined
-                }
-              />
-            </section>
+            <button className="button play-excerpt full" onClick={p.onPlay}>
+              {p.playing ? <Pause size={19} /> : <Play size={19} />}
+              {t(p.playing ? "pauseExcerpt" : "playExcerpt")}
+              <span>
+                {time(first.start_ms)}–{time(first.end_ms)}
+              </span>
+            </button>
             {tab === "assistant" ? (
               <section className="form-section">
                 <h3>{t("assistantHint")}</h3>
@@ -361,234 +416,307 @@ export default function ReviewPanel(p: Props) {
             ) : (
               <>
                 <section className="form-section">
-                  <h3>{t("nameSpeaker")}</h3>
-                  <p className="small muted">{t("newNameHelp")}</p>
+                  <h3>1. {t("whoSpeaking")}</h3>
+                  <p className="small muted">{t("nameOptional")}</p>
                   <input
                     aria-label={t("newName")}
+                    list={`known-people-${recording.id}`}
                     value={name}
                     onChange={(e) => {
                       setName(e.target.value);
-                      setSpeaker("");
+                      setSpeaker(
+                        speakers.find((s) => s.name === e.target.value.trim())
+                          ?.id ?? "",
+                      );
                     }}
                     placeholder={t("newName")}
                   />
-                  {speakers.length > 0 && (
-                    <>
-                      <div className="or-line">{t("or")}</div>
-                      <select
-                        aria-label={t("existingSpeaker")}
-                        value={speaker}
-                        onChange={(e) => {
-                          setSpeaker(e.target.value);
-                          setName("");
-                        }}
-                      >
-                        <option value="">{t("existingSpeaker")}</option>
-                        {speakers.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-                  <label>
-                    {t("scope")}
-                    <select
-                      value={scope}
-                      onChange={(e) =>
-                        setScope(e.target.value as "selected" | "cluster")
-                      }
-                    >
-                      <option value="selected">{t("selectedTurns")}</option>
-                      <option value="cluster">{t("allCluster")}</option>
-                    </select>
-                  </label>
-                  <button
-                    className="button full"
-                    disabled={p.busy}
-                    onClick={previewName}
-                  >
-                    <UserRound size={15} />
-                    {t("assign")}
-                  </button>
-                </section>
-                <section className="form-section">
-                  <h3>{t("mark")}</h3>
-                  <div className="category-grid">
-                    {(
-                      [
-                        "speech",
-                        "noise",
-                        "irrelevant",
-                        "overlap",
-                        "uncertain",
-                      ] as const
-                    ).map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => void act({ kind: "mark", category })}
-                      >
-                        {t(category)}
-                      </button>
+                  <datalist id={`known-people-${recording.id}`}>
+                    {speakers.map((s) => (
+                      <option key={s.id} value={s.name} />
                     ))}
-                  </div>
-                </section>
-                {selection.length === 1 && (
-                  <section className="form-section">
-                    <h3>{t("text")}</h3>
-                    <textarea
-                      aria-label={t("text")}
-                      value={text}
-                      rows={4}
-                      onChange={(e) => setText(e.target.value)}
-                    />
-                    <button
-                      className="button full"
-                      onClick={() => void act({ kind: "text", text })}
-                    >
-                      {t("editText")}
-                    </button>
-                    <div className="two-fields">
-                      <label>
-                        {t("start")}
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          value={start}
-                          onChange={(e) => setStart(e.target.value)}
-                        />
-                      </label>
-                      <label>
-                        {t("end")}
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          value={end}
-                          onChange={(e) => setEnd(e.target.value)}
-                        />
-                      </label>
-                    </div>
-                    <button
-                      className="button full"
-                      onClick={() =>
-                        void act({
-                          kind: "bounds",
-                          start_ms: Math.round(Number(start) * 1000),
-                          end_ms: Math.round(Number(end) * 1000),
-                        })
-                      }
-                    >
-                      {t("adjustBounds")}
-                    </button>
-                    {!first.words.length && (
+                  </datalist>
+                  {(name.trim() || speaker) && first.cluster && (
+                    <label className="whole-voice-choice">
+                      <input
+                        type="checkbox"
+                        checked={scope === "cluster"}
+                        onChange={(e) =>
+                          setScope(e.target.checked ? "cluster" : "selected")
+                        }
+                      />
+                      <span>{t("nameWholeVoice")}</span>
+                    </label>
+                  )}
+                  <details className="assignment-options">
+                    <summary>{t("assignmentOptions")}</summary>
+                    {speakers.length > 0 && (
                       <>
-                        <label>
-                          {t("leftText")}
-                          <textarea
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                          />
-                        </label>
-                        <label>
-                          {t("rightText")}
-                          <textarea
-                            value={rightText}
-                            onChange={(e) => setRightText(e.target.value)}
-                          />
-                        </label>
+                        <select
+                          aria-label={t("existingSpeaker")}
+                          value={speaker}
+                          onChange={(e) => {
+                            setSpeaker(e.target.value);
+                            setName(
+                              speakers.find((s) => s.id === e.target.value)
+                                ?.name ?? "",
+                            );
+                          }}
+                        >
+                          <option value="">{t("existingSpeaker")}</option>
+                          {speakers.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
                       </>
                     )}
-                    <button className="button full" onClick={split}>
-                      <Scissors size={15} />
-                      {t("split")}
-                    </button>
-                    <p className="small muted">{t("splitHint")}</p>
-                  </section>
-                )}
-                <section className="form-section">
-                  <h3>{t("saveReference")}</h3>
-                  <p className="small muted">{t("referenceHint")}</p>
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={clean}
-                      onChange={(e) => setClean(e.target.checked)}
-                    />
-                    <span>{t("cleanConfirm")}</span>
-                  </label>
-                  <button
-                    className="button full"
-                    onClick={() => void reference()}
-                    disabled={!first.speaker_id || !clean}
-                  >
-                    <Headphones size={15} />
-                    {t("saveReference")}
-                  </button>
-                </section>
-                <section className="form-section">
-                  <h3>{t("reanalyze")}</h3>
-                  <p className="small muted">{t("recheckHint")}</p>
-                  <label>
-                    {t("minimum")}
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={minimum}
-                      onChange={(e) => setMinimum(e.target.value)}
-                    />
-                  </label>
-                  <button
-                    className="button full"
-                    onClick={() =>
-                      void act({
-                        kind: "reanalyze",
-                        start_ms: Math.round(Number(start) * 1000),
-                        end_ms: Math.round(Number(end) * 1000),
-                        min_speakers: Number(minimum),
-                      })
-                    }
-                  >
-                    <Split size={15} />
-                    {t("reanalyze")}
-                  </button>
-                </section>
-                {first.speaker_id && speakers.length > 1 && (
-                  <section className="form-section">
-                    <h3>{t("merge")}</h3>
-                    <select
-                      aria-label={t("mergeInto")}
-                      value={mergeTarget}
-                      onChange={(e) => setMergeTarget(e.target.value)}
-                    >
-                      <option value="">{t("mergeInto")}</option>
-                      {speakers
-                        .filter((s) => s.id !== first.speaker_id)
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                    </select>
+                    <label>
+                      {t("scope")}
+                      <select
+                        value={scope}
+                        onChange={(e) =>
+                          setScope(e.target.value as "selected" | "cluster")
+                        }
+                      >
+                        <option value="selected">{t("selectedTurns")}</option>
+                        <option value="cluster">{t("allCluster")}</option>
+                      </select>
+                    </label>
                     <button
                       className="button full"
-                      disabled={!mergeTarget}
+                      disabled={p.busy}
+                      onClick={previewName}
+                    >
+                      <UserRound size={15} />
+                      {t("assign")}
+                    </button>
+                  </details>
+                </section>
+                {selection.length === 1 && (
+                  <section className="form-section quick-text">
+                    <h3>2. {t("wordsSaid")}</h3>
+                    <p className="small muted">{t("wordsHelp")}</p>
+                    <textarea
+                      aria-label={t("text")}
+                      rows={4}
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                    />
+                  </section>
+                )}
+                <div className="quick-save">
+                  <button
+                    className="button primary full"
+                    disabled={applying || p.busy}
+                    onClick={() => void saveAndNext()}
+                  >
+                    {applying ? (
+                      <Loader2 className="spin" size={17} />
+                    ) : (
+                      <Check size={17} />
+                    )}
+                    {t(p.position < p.count ? "saveNext" : "saveChanges")}
+                  </button>
+                  <div className="review-navigation">
+                    <button
+                      className="text-button"
+                      disabled={p.position <= 1 || applying}
+                      onClick={p.onPrevious}
+                    >
+                      <ArrowLeft size={15} />
+                      {t("previousExcerpt")}
+                    </button>
+                    <button
+                      className="text-button"
+                      disabled={applying}
+                      onClick={p.onNext}
+                    >
+                      {t("skipExcerpt")}
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </div>
+                <details className="advanced-options">
+                  <summary>{t("advancedCorrections")}</summary>
+                  <section className="form-section">
+                    <h3>{t("mark")}</h3>
+                    <div className="category-grid">
+                      {(
+                        [
+                          "speech",
+                          "noise",
+                          "irrelevant",
+                          "overlap",
+                          "uncertain",
+                        ] as const
+                      ).map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => void act({ kind: "mark", category })}
+                        >
+                          {t(category)}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                  {selection.length === 1 && (
+                    <section className="form-section">
+                      <h3>{t("text")}</h3>
+                      <textarea
+                        aria-label={t("adjustTranscript")}
+                        value={text}
+                        rows={4}
+                        onChange={(e) => setText(e.target.value)}
+                      />
+                      <button
+                        className="button full"
+                        onClick={() => void act({ kind: "text", text })}
+                      >
+                        {t("editText")}
+                      </button>
+                      <div className="two-fields">
+                        <label>
+                          {t("start")}
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={start}
+                            onChange={(e) => setStart(e.target.value)}
+                          />
+                        </label>
+                        <label>
+                          {t("end")}
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={end}
+                            onChange={(e) => setEnd(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <button
+                        className="button full"
+                        onClick={() =>
+                          void act({
+                            kind: "bounds",
+                            start_ms: Math.round(Number(start) * 1000),
+                            end_ms: Math.round(Number(end) * 1000),
+                          })
+                        }
+                      >
+                        {t("adjustBounds")}
+                      </button>
+                      {!first.words.length && (
+                        <>
+                          <label>
+                            {t("leftText")}
+                            <textarea
+                              value={text}
+                              onChange={(e) => setText(e.target.value)}
+                            />
+                          </label>
+                          <label>
+                            {t("rightText")}
+                            <textarea
+                              value={rightText}
+                              onChange={(e) => setRightText(e.target.value)}
+                            />
+                          </label>
+                        </>
+                      )}
+                      <button className="button full" onClick={split}>
+                        <Scissors size={15} />
+                        {t("split")}
+                      </button>
+                      <p className="small muted">{t("splitHint")}</p>
+                    </section>
+                  )}
+                  <section className="form-section">
+                    <h3>{t("saveReference")}</h3>
+                    <p className="small muted">{t("referenceHint")}</p>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={clean}
+                        onChange={(e) => setClean(e.target.checked)}
+                      />
+                      <span>{t("cleanConfirm")}</span>
+                    </label>
+                    <button
+                      className="button full"
+                      onClick={() => void reference()}
+                      disabled={!first.speaker_id || !clean}
+                    >
+                      <Headphones size={15} />
+                      {t("saveReference")}
+                    </button>
+                  </section>
+                  <section className="form-section">
+                    <h3>{t("reanalyze")}</h3>
+                    <p className="small muted">{t("recheckHint")}</p>
+                    <label>
+                      {t("minimum")}
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={minimum}
+                        onChange={(e) => setMinimum(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      className="button full"
                       onClick={() =>
                         void act({
-                          kind: "merge",
-                          source_speaker_id: first.speaker_id!,
-                          speaker_id: mergeTarget,
+                          kind: "reanalyze",
+                          start_ms: Math.round(Number(start) * 1000),
+                          end_ms: Math.round(Number(end) * 1000),
+                          min_speakers: Number(minimum),
                         })
                       }
                     >
-                      <Merge size={15} />
-                      {t("previewMerge")}
+                      <Split size={15} />
+                      {t("reanalyze")}
                     </button>
                   </section>
-                )}
+                  {first.speaker_id && speakers.length > 1 && (
+                    <section className="form-section">
+                      <h3>{t("merge")}</h3>
+                      <select
+                        aria-label={t("mergeInto")}
+                        value={mergeTarget}
+                        onChange={(e) => setMergeTarget(e.target.value)}
+                      >
+                        <option value="">{t("mergeInto")}</option>
+                        {speakers
+                          .filter((s) => s.id !== first.speaker_id)
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        className="button full"
+                        disabled={!mergeTarget}
+                        onClick={() =>
+                          void act({
+                            kind: "merge",
+                            source_speaker_id: first.speaker_id!,
+                            speaker_id: mergeTarget,
+                          })
+                        }
+                      >
+                        <Merge size={15} />
+                        {t("previewMerge")}
+                      </button>
+                    </section>
+                  )}
+                </details>
               </>
             )}
           </>

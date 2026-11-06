@@ -3,6 +3,14 @@ import fs from "node:fs/promises";
 
 async function demo(page: Page) {
   await page.goto("/");
+  if (
+    !(await page
+      .getByRole("button", { name: "Open public demo", exact: true })
+      .isVisible())
+  )
+    await page
+      .getByRole("button", { name: "Choose a recording", exact: true })
+      .click();
   await page
     .getByRole("button", { name: "Open public demo", exact: true })
     .click();
@@ -16,6 +24,7 @@ test("confirmed names persist through reload and can be undone", async ({
 }, testInfo) => {
   await demo(page);
   await page.locator(".turn-row").nth(2).click();
+  await page.getByText("Name assignment options", { exact: true }).click();
   await page
     .getByLabel("Choose a registered person")
     .selectOption({ label: "Reader C" });
@@ -99,13 +108,11 @@ test("a recording link opens the intended audio and review clips play", async ({
     .toBeGreaterThan(0);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await page.locator(".turn-row").first().click();
-  await page
-    .locator(".clip-card audio")
-    .evaluate((audio: HTMLAudioElement) => audio.play());
+  await page.getByRole("button", { name: /^Play this excerpt/ }).click();
   await expect
     .poll(() =>
       page
-        .locator(".clip-card audio")
+        .locator(".player audio")
         .evaluate((audio: HTMLAudioElement) => audio.currentTime),
     )
     .toBeGreaterThan(0);
@@ -190,4 +197,93 @@ test("the mobile layout keeps review controls reachable without horizontal overf
     path: testInfo.outputPath("mobile-demo.png"),
     fullPage: true,
   });
+});
+
+test("guided review saves a name and text together, then opens the next excerpt", async ({
+  page,
+}) => {
+  await demo(page);
+  await page.getByRole("button", { name: "Start review", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "1. Who is speaking?", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Enter a name", { exact: true })
+    .fill("Reviewed Reader");
+  await page
+    .getByLabel("Transcript text", { exact: true })
+    .fill("Reviewed words from the public example.");
+  await page.getByRole("button", { name: "Save & next", exact: true }).click();
+  await expect(page.locator(".selection-header")).toContainText(
+    "Excerpt 2 / 4",
+  );
+  await expect(page.locator(".turn-row").first()).toContainText(
+    "Reviewed Reader",
+  );
+  await expect(page.locator(".turn-row").first()).toContainText(
+    "Reviewed words from the public example.",
+  );
+  await page.reload();
+  await expect(page.locator(".turn-row").first()).toContainText(
+    "Reviewed Reader",
+  );
+});
+
+test("short desktop and narrow app panes leave room to read and keep basic controls visible", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 604 });
+  await demo(page);
+  expect(
+    await page
+      .locator(".transcript-scroll")
+      .evaluate((el) => el.getBoundingClientRect().height),
+  ).toBeGreaterThan(240);
+  await page.getByRole("button", { name: "Start review", exact: true }).click();
+  const unobscured = () =>
+    page.evaluate(() => {
+      const field = document
+        .querySelector('textarea[aria-label="Transcript text"]')!
+        .getBoundingClientRect();
+      const save = document
+        .querySelector(".quick-save")!
+        .getBoundingClientRect();
+      return field.bottom <= save.top + 1;
+    });
+  expect(await unobscured()).toBeTruthy();
+  await page.screenshot({
+    path: testInfo.outputPath("short-desktop-review.png"),
+  });
+  await page
+    .getByRole("button", { name: "Back to transcript", exact: true })
+    .click();
+  await page.setViewportSize({ width: 319, height: 604 });
+  expect(
+    await page
+      .locator(".transcript-scroll")
+      .evaluate((el) => el.getBoundingClientRect().height),
+  ).toBeGreaterThan(250);
+  await page.getByRole("button", { name: "Start review", exact: true }).click();
+  for (const label of ["Enter a name", "Transcript text"])
+    await expect(page.getByLabel(label, { exact: true })).toBeInViewport({
+      ratio: 1,
+    });
+  await expect(
+    page.getByRole("button", { name: "Save & next", exact: true }),
+  ).toBeInViewport();
+  expect(await unobscured()).toBeTruthy();
+  await expect(page.locator(".advanced-options")).not.toHaveAttribute(
+    "open",
+    "",
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({ path: testInfo.outputPath("narrow-review.png") });
+  await page
+    .getByRole("button", { name: "Back to transcript", exact: true })
+    .click();
+  await expect(page.locator(".transcript-scroll")).toBeInViewport();
 });

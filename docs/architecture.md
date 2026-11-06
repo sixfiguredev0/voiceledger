@@ -27,6 +27,8 @@ Artifacts are keyed by source hash, processing settings, pipeline version and mo
 
 ## Corrections and identities
 
+The normal editor presents one excerpt, a bounded playback action, a name field and text editing. Save-and-next submits the same typed preview/apply commands used by advanced controls. It advances only after a successful revision-checked commit. Timing, splitting, reference creation and reanalysis stay in optional controls. Short browser windows give the editor the full available height; narrow panes show it as a separate screen. The transcript remains virtualized, and layout checks assert that save controls do not obscure the text field.
+
 Raw inference runs are retained. Assignments, text edits, splits, region categories and identity merges are stored as reversible commands. Proposals include a base revision; stale proposals are rejected. Changed turn identifiers after reanalysis produce visible conflicts, preserving the saved edit for inspection. Recheck commands and their queued jobs commit in the same transaction. Undo cancels pending rechecks or restores the previous completed run. A worker checks cancellation again before publishing a result; undone rechecks cannot be resumed.
 
 Speaker profiles use only explicitly confirmed reference clips. Cross-recording comparison uses normalized embeddings from the same model revision and ranks cosine similarity against confirmed profiles. The user compares clips and confirms matches. Anonymous recording clusters and persistent project identities use different identifiers.
