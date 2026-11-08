@@ -14,6 +14,17 @@ frontend/test-results/
 frontend/playwright-report/
 .env
 .env.*
+.netrc
+.npmrc
+.pypirc
+auth.json
+credentials.json
+tokens.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
 !.env.example
 data/
 private/
