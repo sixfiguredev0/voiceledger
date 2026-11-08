@@ -27,6 +27,7 @@ import type {
   Turn,
 } from "./types";
 import type { Key } from "./i18n";
+import { SlidingHighlight, useContentArrival } from "./Motion";
 
 type Props = {
   recording: Recording;
@@ -84,6 +85,7 @@ export default function ReviewPanel(p: Props) {
   const first = selection[0],
     ids = selection.map((s) => s.id);
   const panelScroll = useRef<HTMLDivElement>(null);
+  useContentArrival(panelScroll, `${first?.id ?? "empty"}:${tab}`);
   useEffect(() => {
     panelScroll.current?.scrollTo({ top: 0 });
   }, [first?.id]);
@@ -235,6 +237,7 @@ export default function ReviewPanel(p: Props) {
   return (
     <aside className="review-panel" aria-label={t("reviewEditor")}>
       <div className="panel-tabs">
+        <SlidingHighlight active={tab} className="panel-highlight" />
         <button
           className={tab === "selection" ? "active" : ""}
           onClick={() => setTab("selection")}

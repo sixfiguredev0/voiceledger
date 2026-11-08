@@ -43,6 +43,12 @@ import type {
 } from "./types";
 import Player from "./Player";
 import ReviewPanel from "./ReviewPanel";
+import {
+  ModalLayer,
+  SlidingHighlight,
+  usePressFeedback,
+  useDismissiblePopovers,
+} from "./Motion";
 
 type View = "transcript" | "speakers" | "review" | "processing";
 function IconMark() {
@@ -91,6 +97,8 @@ function ModeCards({
 }
 
 export default function App() {
+  usePressFeedback();
+  useDismissiblePopovers();
   const [lang, setLang] = useState(
       localStorage.getItem("voiceledger.language") ?? "en",
     ),
@@ -547,12 +555,17 @@ export default function App() {
     (n, r) => n + r.metadata_json.duration_ms,
     0,
   );
-  const modalClose = (
-    event: React.MouseEvent<HTMLDivElement>,
-    close: () => void,
-  ) => {
-    if (event.target === event.currentTarget) close();
-  };
+  const projectJobs = jobs.filter(
+    (job) =>
+      job.kind === "download" ||
+      recordings.some((r) => r.id === job.recording_id),
+  );
+  const latestJob = jobs.find(
+    (job) => job.recording_id === recordingId && job.kind === "process",
+  );
+  const completedRecordings = recordings.filter(
+    (r) => !!r.current_run_id,
+  ).length;
   return (
     <div
       className={`app-shell ${filesOpen ? "files-open" : ""}`}
@@ -625,7 +638,7 @@ export default function App() {
           </span>
         </div>
         <div className="recording-list">
-          {recordings.map((r, i) => (
+          {recordings.map((r) => (
             <button
               className={`recording-item ${r.id === recordingId ? "selected" : ""}`}
               key={r.id}
@@ -640,7 +653,20 @@ export default function App() {
               </span>
               <span className="record-info">
                 <b>{r.filename.replace(/\.[^.]+$/, "")}</b>
-                <small>{time(r.metadata_json.duration_ms, true)}</small>
+                <small>
+                  {time(r.metadata_json.duration_ms, true)}
+                  <span
+                    className={`record-state ${jobs.some((j) => j.recording_id === r.id && j.status === "running") ? "working" : r.current_run_id ? "ready" : ""}`}
+                  >
+                    {jobs.some(
+                      (j) => j.recording_id === r.id && j.status === "running",
+                    )
+                      ? t("running")
+                      : r.current_run_id
+                        ? t("ready")
+                        : t("imported")}
+                  </span>
+                </small>
               </span>
               <span
                 className={`record-dot ${r.current_run_id ? "done" : ""}`}
@@ -720,6 +746,10 @@ export default function App() {
               <option value="bg">БГ</option>
             </select>
             <div className="profile-avatar">VL</div>
+            <span className="workspace-status">
+              <span className="tiny-dot green" />
+              {t("localOnly")}
+            </span>
           </div>
         </header>
         {!recording ? (
@@ -768,6 +798,13 @@ export default function App() {
                     <Users size={13} />
                     {detected.length} {t("detected").toLocaleLowerCase()}
                   </span>
+                  {recording.current_run_id && (
+                    <span className="analysis-label">
+                      <Check size={12} />
+                      {t("draftReady")}
+                      {latestJob ? ` · ${t(latestJob.mode)}` : ""}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="heading-actions">
@@ -807,7 +844,8 @@ export default function App() {
                 )}
               </div>
             </section>
-            <nav className="view-tabs">
+            <nav className="view-tabs" aria-label={t("view")}>
+              <SlidingHighlight active={`${view}:${lang}`} />
               {(
                 [
                   ["transcript", FileAudio],
@@ -819,6 +857,7 @@ export default function App() {
                 <button
                   key={v}
                   className={view === v ? "active" : ""}
+                  aria-current={view === v ? "page" : undefined}
                   onClick={() => setView(v)}
                 >
                   <Icon size={15} />
@@ -948,8 +987,9 @@ export default function App() {
                     </details>
                   </div>
                   <div className="transcript-labels">
-                    <span>
-                      {t("readHint")}
+                    <span className="transcript-caption">
+                      <b>{t("transcript")}</b>
+                      <span className="caption-hint">{t("readHint")}</span>
                       <span className="muted">
                         {" "}
                         {loading
@@ -974,7 +1014,56 @@ export default function App() {
                     </span>
                   </div>
                   <div className="transcript-scroll" ref={scrollRef}>
-                    {!rows.length && !loading ? (
+                    {loading && !rows.length ? (
+                      <div
+                        className="transcript-skeleton"
+                        role="status"
+                        aria-label={t("loading")}
+                      >
+                        {[0, 1, 2, 3].map((i) => (
+                          <div className="skeleton-row" key={i}>
+                            <span />
+                            <div>
+                              <i />
+                              <i />
+                              <i />
+                            </div>
+                          </div>
+                        ))}
+                        <span className="sr-only">{t("loading")}</span>
+                      </div>
+                    ) : !rows.length && !loading && activeJob ? (
+                      <div className="empty-transcript processing-empty">
+                        <div className="empty-symbol">
+                          <Loader2 className="spin" size={28} />
+                        </div>
+                        <h2>
+                          {t(
+                            activeJob.status === "queued"
+                              ? "queued"
+                              : "running",
+                          )}
+                        </h2>
+                        <p>{t("processingExplanation")}</p>
+                        <div className="processing-inline-track">
+                          <span
+                            style={{
+                              transform: `scaleX(${Math.max(0, Math.min(1, activeJob.progress))})`,
+                            }}
+                          />
+                        </div>
+                        <span className="mono">
+                          {Math.round(activeJob.progress * 100)}%
+                        </span>
+                        <button
+                          className="button"
+                          onClick={() => setView("processing")}
+                        >
+                          {t("seeJobs")}
+                          <ArrowUpRight size={15} />
+                        </button>
+                      </div>
+                    ) : !rows.length && !loading ? (
                       <div className="empty-transcript">
                         <div className="empty-symbol">
                           <AudioLines size={30} />
@@ -1141,7 +1230,7 @@ export default function App() {
                 />
               </div>
             ) : view === "speakers" ? (
-              <main className="library-page">
+              <main className="library-page" key="speakers">
                 <div className="section-heading">
                   <div>
                     <span className="eyebrow">{t("registered")}</span>
@@ -1354,7 +1443,7 @@ export default function App() {
                 </section>
               </main>
             ) : (
-              <main className="jobs-page">
+              <main className="jobs-page" key="processing">
                 <div className="section-heading">
                   <div>
                     <span className="eyebrow">{t("local")}</span>
@@ -1362,11 +1451,27 @@ export default function App() {
                   </div>
                   <p>{t("jobHint")}</p>
                 </div>
-                <ModeCards mode={mode} setMode={setMode} t={t} />
+                <div className="processing-overview">
+                  <div>
+                    <span>{t("recordings")}</span>
+                    <b>{recordings.length.toString().padStart(2, "0")}</b>
+                  </div>
+                  <div>
+                    <span>{t("draftReady")}</span>
+                    <b>{completedRecordings.toString().padStart(2, "0")}</b>
+                  </div>
+                  <div>
+                    <span>{t("duration")}</span>
+                    <b>{time(totalDuration, true)}</b>
+                  </div>
+                </div>
                 <div className="jobs-list">
-                  {jobs.length ? (
-                    jobs.map((job) => (
-                      <article className="job-card" key={job.id}>
+                  {projectJobs.length ? (
+                    projectJobs.map((job) => (
+                      <article
+                        className={`job-card ${job.status}`}
+                        key={job.id}
+                      >
                         <div className="job-icon">
                           {job.status === "running" ? (
                             <Loader2 size={22} className="spin" />
@@ -1410,7 +1515,11 @@ export default function App() {
                             </span>
                           </div>
                           <div className="progress-track">
-                            <span style={{ width: `${job.progress * 100}%` }} />
+                            <span
+                              style={{
+                                transform: `scaleX(${Math.max(0, Math.min(1, job.progress))})`,
+                              }}
+                            />
                           </div>
                           {job.error && (
                             <p className="job-error">{job.error}</p>
@@ -1441,6 +1550,21 @@ export default function App() {
                             >
                               {t("resume")}
                             </button>
+                          ) : job.status === "completed" &&
+                            recordings.some(
+                              (r) =>
+                                r.id === job.recording_id && r.current_run_id,
+                            ) ? (
+                            <button
+                              className="button small-button"
+                              onClick={() => {
+                                setRecordingId(job.recording_id);
+                                setView("transcript");
+                              }}
+                            >
+                              {t("openTranscript")}
+                              <ArrowUpRight size={14} />
+                            </button>
                           ) : null}
                         </div>
                       </article>
@@ -1457,234 +1581,224 @@ export default function App() {
           </>
         )}
       </div>
-      {settings && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => modalClose(e, () => setSettings(false))}
+      <ModalLayer open={settings} onClose={() => setSettings(false)}>
+        <section
+          className="modal settings-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-title"
         >
-          <section
-            className="modal settings-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="settings-title"
-          >
-            <div className="modal-title">
-              <div>
-                <span className="eyebrow">VOICELEDGER</span>
-                <h2 id="settings-title">{t("settings")}</h2>
-              </div>
-              <button
-                className="icon-button"
-                aria-label={t("close")}
-                onClick={() => setSettings(false)}
-              >
-                <X size={20} />
-              </button>
+          <div className="modal-title">
+            <div>
+              <span className="eyebrow">VOICELEDGER</span>
+              <h2 id="settings-title">{t("settings")}</h2>
             </div>
-            <h3>{t("mode")}</h3>
-            <ModeCards mode={mode} setMode={setMode} t={t} />
-            <div className="settings-fields">
-              <label>
-                {t("language")}
-                <select
-                  value={audioLanguage}
-                  onChange={(e) => setAudioLanguage(e.target.value)}
-                >
-                  <option value="bg">{t("bg")}</option>
-                  <option value="en">{t("en")}</option>
-                  <option value="auto">{t("auto")}</option>
-                </select>
-              </label>
-              <label>
-                {t("interfaceLanguage")}
-                <select value={lang} onChange={(e) => setLang(e.target.value)}>
-                  <option value="en">English</option>
-                  <option value="bg">Български</option>
-                </select>
-              </label>
-            </div>
-            <div className="memory-card">
-              <Layers size={17} />
-              <span>
-                {t("availableMemory")}
-                <b>{health.available_ram_gib} GB</b>
-              </span>
-              <p>{t("memoryHint")}</p>
-            </div>
-            <div className="section-heading">
-              <h3>{t("models")}</h3>
-              <a href="/setup" target="_blank" rel="noreferrer">
-                {t("setup")}
-                <ArrowUpRight size={13} />
-              </a>
-            </div>
-            {recording && (
-              <button
-                className="button"
-                disabled={!!activeJob || busy}
-                onClick={() => {
-                  setSettings(false);
-                  void startJob();
-                }}
-              >
-                <AudioLines size={16} />
-                {t(rows.length ? "reprocess" : "process")}
-              </button>
-            )}
-            <p className="small muted">{t("modelHint")}</p>
-            <div className="model-rows">
-              {(["fast", "balanced", "accuracy", "diarization"] as const).map(
-                (m) => (
-                  <div key={m}>
-                    <span>
-                      <span
-                        className={`tiny-dot ${models[m]?.ready ? "green" : ""}`}
-                      />
-                      {t(m)}
-                    </span>
-                    <span className="small muted">
-                      {models[m]?.ready ? t("downloaded") : t("missing")}
-                    </span>
-                    {m !== "diarization" && (
-                      <button
-                        className="text-button"
-                        disabled={models[m]?.ready && models.diarization?.ready}
-                        onClick={() => {
-                          void post(`/models/${m}/download`)
-                            .then(() => {
-                              notify(t("jobStarted"));
-                              setView("processing");
-                              setSettings(false);
-                            })
-                            .catch((e) => notify(e.message, true));
-                        }}
-                      >
-                        {t("download")}
-                      </button>
-                    )}
-                  </div>
-                ),
-              )}
-            </div>
-          </section>
-        </div>
-      )}
-      {projectOpen && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => modalClose(e, () => setProjectOpen(false))}
-        >
-          <form
-            className="modal compact-modal"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void createProject();
-            }}
-          >
-            <div className="modal-title">
-              <h2>{t("newProject")}</h2>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t("close")}
-                onClick={() => setProjectOpen(false)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <label>
-              {t("projectName")}
-              <input
-                autoFocus
-                required
-                maxLength={120}
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-              />
-            </label>
             <button
-              className="button primary full"
-              disabled={!projectName.trim()}
+              className="icon-button"
+              aria-label={t("close")}
+              onClick={() => setSettings(false)}
             >
-              {t("create")}
+              <X size={20} />
             </button>
-          </form>
-        </div>
-      )}
-      {exportOpen && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => modalClose(e, () => setExportOpen(false))}
-        >
-          <section
-            className="modal compact-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="export-title"
-          >
-            <div className="modal-title">
-              <h2 id="export-title">{t("export")}</h2>
-              <button
-                className="icon-button"
-                aria-label={t("close")}
-                onClick={() => setExportOpen(false)}
-              >
-                <X size={19} />
-              </button>
-            </div>
+          </div>
+          <h3>{t("mode")}</h3>
+          <ModeCards mode={mode} setMode={setMode} t={t} />
+          <div className="settings-fields">
             <label>
-              {t("recordings")}
+              {t("language")}
               <select
-                value={exportScope}
-                onChange={(e) => setExportScope(e.target.value)}
+                value={audioLanguage}
+                onChange={(e) => setAudioLanguage(e.target.value)}
               >
-                <option value="one">{t("exportOne")}</option>
-                <option value="all">{t("exportAll")}</option>
+                <option value="bg">{t("bg")}</option>
+                <option value="en">{t("en")}</option>
+                <option value="auto">{t("auto")}</option>
               </select>
             </label>
-            <div className="format-options">
-              {["txt", "srt", "csv", "json"].map((f) => (
-                <button
-                  className={f === exportFormat ? "selected" : ""}
-                  key={f}
-                  onClick={() => setExportFormat(f)}
-                >
-                  {f.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={includeExcluded}
-                onChange={(e) => setIncludeExcluded(e.target.checked)}
-              />
-              {t("includeExcluded")}
+            <label>
+              {t("interfaceLanguage")}
+              <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                <option value="en">English</option>
+                <option value="bg">Български</option>
+              </select>
             </label>
-            <p className="small muted">{t("exportHint")}</p>
+          </div>
+          <div className="memory-card">
+            <Layers size={17} />
+            <span>
+              {t("availableMemory")}
+              <b>{health.available_ram_gib} GB</b>
+            </span>
+            <p>{t("memoryHint")}</p>
+          </div>
+          <div className="section-heading">
+            <h3>{t("models")}</h3>
+            <a href="/setup" target="_blank" rel="noreferrer">
+              {t("setup")}
+              <ArrowUpRight size={13} />
+            </a>
+          </div>
+          {recording && (
             <button
-              className="button primary full"
-              onClick={() =>
-                void download(
-                  `/projects/${projectId}/export/${exportFormat}?include_excluded=${includeExcluded}${exportScope === "one" ? `&recording_id=${recordingId}` : ""}`,
-                  `voiceledger.${exportFormat}`,
-                )
-                  .then(() => setExportOpen(false))
-                  .catch((e) => notify(e.message, true))
-              }
+              className="button"
+              disabled={!!activeJob || busy}
+              onClick={() => {
+                setSettings(false);
+                void startJob();
+              }}
             >
-              <Download size={16} />
-              {t("downloadExport")}
+              <AudioLines size={16} />
+              {t(rows.length ? "reprocess" : "process")}
             </button>
-          </section>
-        </div>
-      )}
-      {sampleClip && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => modalClose(e, () => setSampleClip(null))}
+          )}
+          <p className="small muted">{t("modelHint")}</p>
+          <div className="model-rows">
+            {(["fast", "balanced", "accuracy", "diarization"] as const).map(
+              (m) => (
+                <div key={m}>
+                  <span>
+                    <span
+                      className={`tiny-dot ${models[m]?.ready ? "green" : ""}`}
+                    />
+                    {t(m)}
+                  </span>
+                  <span className="small muted">
+                    {models[m]?.ready ? t("downloaded") : t("missing")}
+                  </span>
+                  {m !== "diarization" && (
+                    <button
+                      className="text-button"
+                      disabled={models[m]?.ready && models.diarization?.ready}
+                      onClick={() => {
+                        void post(`/models/${m}/download`)
+                          .then(() => {
+                            notify(t("jobStarted"));
+                            setView("processing");
+                            setSettings(false);
+                          })
+                          .catch((e) => notify(e.message, true));
+                      }}
+                    >
+                      {t("download")}
+                    </button>
+                  )}
+                </div>
+              ),
+            )}
+          </div>
+        </section>
+      </ModalLayer>
+      <ModalLayer open={projectOpen} onClose={() => setProjectOpen(false)}>
+        <form
+          className="modal compact-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="project-title"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void createProject();
+          }}
         >
-          <section className="modal compact-modal">
+          <div className="modal-title">
+            <h2 id="project-title">{t("newProject")}</h2>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t("close")}
+              onClick={() => setProjectOpen(false)}
+            >
+              <X size={19} />
+            </button>
+          </div>
+          <label>
+            {t("projectName")}
+            <input
+              data-autofocus
+              required
+              maxLength={120}
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+            />
+          </label>
+          <button
+            className="button primary full"
+            disabled={!projectName.trim()}
+          >
+            {t("create")}
+          </button>
+        </form>
+      </ModalLayer>
+      <ModalLayer open={exportOpen} onClose={() => setExportOpen(false)}>
+        <section
+          className="modal compact-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-title"
+        >
+          <div className="modal-title">
+            <h2 id="export-title">{t("export")}</h2>
+            <button
+              className="icon-button"
+              aria-label={t("close")}
+              onClick={() => setExportOpen(false)}
+            >
+              <X size={19} />
+            </button>
+          </div>
+          <label>
+            {t("recordings")}
+            <select
+              value={exportScope}
+              onChange={(e) => setExportScope(e.target.value)}
+            >
+              <option value="one">{t("exportOne")}</option>
+              <option value="all">{t("exportAll")}</option>
+            </select>
+          </label>
+          <div className="format-options">
+            {["txt", "srt", "csv", "json"].map((f) => (
+              <button
+                className={f === exportFormat ? "selected" : ""}
+                key={f}
+                onClick={() => setExportFormat(f)}
+              >
+                {f.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={includeExcluded}
+              onChange={(e) => setIncludeExcluded(e.target.checked)}
+            />
+            {t("includeExcluded")}
+          </label>
+          <p className="small muted">{t("exportHint")}</p>
+          <button
+            className="button primary full"
+            onClick={() =>
+              void download(
+                `/projects/${projectId}/export/${exportFormat}?include_excluded=${includeExcluded}${exportScope === "one" ? `&recording_id=${recordingId}` : ""}`,
+                `voiceledger.${exportFormat}`,
+              )
+                .then(() => setExportOpen(false))
+                .catch((e) => notify(e.message, true))
+            }
+          >
+            <Download size={16} />
+            {t("downloadExport")}
+          </button>
+        </section>
+      </ModalLayer>
+      {sampleClip && (
+        <ModalLayer open={!!sampleClip} onClose={() => setSampleClip(null)}>
+          <section
+            className="modal compact-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("listen")}
+          >
             <div className="modal-title">
               <h2>{t("listen")}</h2>
               <button
@@ -1704,7 +1818,7 @@ export default function App() {
               {time(sampleClip.start_ms)}–{time(sampleClip.end_ms)}
             </p>
           </section>
-        </div>
+        </ModalLayer>
       )}
       {toast && (
         <div

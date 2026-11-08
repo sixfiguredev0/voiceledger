@@ -49,6 +49,7 @@ test("confirmed names persist through reload and can be undone", async ({
   await page.screenshot({
     path: testInfo.outputPath("desktop-demo.png"),
     fullPage: true,
+    animations: "disabled",
   });
   expect(
     await page.evaluate(
@@ -196,6 +197,7 @@ test("the mobile layout keeps review controls reachable without horizontal overf
   await page.screenshot({
     path: testInfo.outputPath("mobile-demo.png"),
     fullPage: true,
+    animations: "disabled",
   });
 });
 
@@ -253,6 +255,7 @@ test("short desktop and narrow app panes leave room to read and keep basic contr
   expect(await unobscured()).toBeTruthy();
   await page.screenshot({
     path: testInfo.outputPath("short-desktop-review.png"),
+    animations: "disabled",
   });
   await page
     .getByRole("button", { name: "Back to transcript", exact: true })
@@ -281,7 +284,10 @@ test("short desktop and narrow app panes leave room to read and keep basic contr
       () => document.documentElement.scrollWidth <= innerWidth + 1,
     ),
   ).toBeTruthy();
-  await page.screenshot({ path: testInfo.outputPath("narrow-review.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("narrow-review.png"),
+    animations: "disabled",
+  });
   await page
     .getByRole("button", { name: "Back to transcript", exact: true })
     .click();

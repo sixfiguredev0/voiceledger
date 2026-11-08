@@ -1,4 +1,9 @@
 export const en = {
+  draftReady: "Draft ready",
+  openTranscript: "Open transcript",
+  imported: "Added",
+  processingExplanation:
+    "Your recording is being turned into words and speaker labels. The transcript will appear here when both are ready. You can leave this screen while it runs.",
   startReview: "Start review",
   filters: "Filters",
   nameWholeVoice:
@@ -243,6 +248,11 @@ export const en = {
 } as const;
 export type Key = keyof typeof en;
 export const bg: Record<Key, string> = {
+  draftReady: "Черновата е готова",
+  openTranscript: "Отвори текста",
+  imported: "Добавен",
+  processingExplanation:
+    "Записът се превръща в текст с означени говорители. Той ще се появи тук, когато и двата етапа приключат. Можеш да излезеш от този екран, докато обработката продължава.",
   startReview: "Започни преглед",
   filters: "Филтри",
   nameWholeVoice: "Използвай името за всички откъси с този глас в този запис",

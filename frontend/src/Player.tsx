@@ -75,7 +75,10 @@ export default function Player({ recording, t, onTime, onReady }: Props) {
       );
   };
   return (
-    <section className="player" aria-label={t("timeline")}>
+    <section
+      className={`player ${playing ? "is-playing" : ""}`}
+      aria-label={t("timeline")}
+    >
       <div className="player-top">
         <span className="eyebrow">
           <AudioLines size={14} />
@@ -97,6 +100,13 @@ export default function Player({ recording, t, onTime, onReady }: Props) {
       />
       <div className="wave-wrap">
         <div ref={wave} className="waveform" />
+        <div className="playback-line" aria-hidden="true">
+          <span
+            style={{
+              transform: `scaleX(${position / Math.max(1, recording.metadata_json.duration_ms)})`,
+            }}
+          />
+        </div>
         {!hasPeaks && (
           <input
             aria-label={t("timeline")}
@@ -123,6 +133,7 @@ export default function Player({ recording, t, onTime, onReady }: Props) {
           </button>
           <button
             className="play-button"
+            aria-pressed={playing}
             aria-label={playing ? t("pause") : t("play")}
             onClick={() => {
               if (media.current)

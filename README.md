@@ -8,6 +8,8 @@ Local transcription, speaker review, and a record of the corrections you confirm
 
 VoiceLedger is a Windows application that runs in your browser. It transcribes recordings on your CPU, separates anonymous speaker turns, and helps you attach consistent names across recordings. You listen, compare clips, and confirm identities. The app never joins people automatically.
 
+The interface uses soft glass surfaces, amber highlights and responsive motion. Tabs, dialogs, playback and buttons give immediate feedback; reduced-motion settings are respected. Processing shows the current project's jobs with direct links to completed transcripts. [Interface notes](docs/interface.md) describe the interaction and accessibility checks.
+
 **v0.1.0 is a preview.** The local engine and review workflow have been exercised on Windows. Bulgarian word accuracy and speaker attribution still need a manually reviewed reference. The included English demo uses dataset annotations, clearly labeled as precomputed review data.
 
 ## What works
