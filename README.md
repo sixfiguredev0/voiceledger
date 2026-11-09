@@ -35,6 +35,8 @@ Use Windows x64, [Node.js 24](https://nodejs.org/), and a current Chromium-based
 
 No paid transcription service or API key is used. Model downloads are free. The optional assistant uses your existing ChatGPT Codex allowance and its limits. Manual controls work without Codex.
 
+The launcher shows a quiet studio status screen with a small cat that occasionally wanders, blinks or looks around. Press **O** to reopen the browser, **L** to open the private session log, or **Q** to stop the app safely. Keep the window open or minimized while working. Launching again connects to an existing VoiceLedger service; in that case Q closes only the companion. Technical output is kept under `%LOCALAPPDATA%\VoiceLedger\logs`. Startup failures show the log location. `Launch.cmd --plain` uses a static display; `Launch.cmd --preview --seconds 20` previews the cat without starting a service. The ordinary diagnostic launch remains available through `python -m voiceledger.cli launch`.
+
 For installation diagnostics, run this in the project folder:
 
 ```powershell

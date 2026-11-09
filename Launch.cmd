@@ -7,7 +7,8 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" -m voiceledger.cli launch
+title VoiceLedger - studio companion
+".venv\Scripts\python.exe" -m voiceledger.launcher %*
 set "taskExit=%ERRORLEVEL%"
 if not "%taskExit%"=="0" pause
 endlocal & exit /b %taskExit%
